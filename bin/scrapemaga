@@ -1,0 +1,13 @@
+
+require 'scrapemaga'
+
+
+sm = ScrapeMaga.new
+sm.use_cache = false
+sm.show_progress = true
+sm.get
+
+
+
+
+
