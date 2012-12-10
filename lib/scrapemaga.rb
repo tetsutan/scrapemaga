@@ -7,9 +7,11 @@ require 'uri'
 class ScrapeMaga
 
   NEXT_PATTERN = %w/次へ 次の >> 次 next/
+  DATA_ENCODINGS = %w/utf-8 euc-jp sjis ascii/
+  
 
   attr_accessor :url, :use_cache, :show_progress, :_cache_dir
-  attr_accessor :downloaded_images, :downloaded_urls
+  attr_accessor :downloaded_images, :downloaded_urls, :downloaded_image_pathes
   attr_accessor :__debug
 
   def initialize(url)
@@ -21,6 +23,7 @@ class ScrapeMaga
     self._cache_dir = '/tmp/scrape_maga'
     self.downloaded_urls = []
     self.downloaded_images = []
+    self.downloaded_image_pathes = {}
 
     self.url = url
 
@@ -47,7 +50,6 @@ class ScrapeMaga
     "#{_cache_dir}/#{cache_key}"
   end
 
-  
   def data
 
     return @data if @data
@@ -58,9 +60,31 @@ class ScrapeMaga
     if !_data
       begin
         _uri = open(url)
+
+        _debug("_uri.charset = #{_uri.charset}")
+
         _data = _uri.read
-        # _data.force_encoding(_uri.charset) if _uri.charset
+
+        enc = nil
+        DATA_ENCODINGS.each do |_enc|
+          enc = _enc if _data.force_encoding(_enc).valid_encoding?
+        end
+
+        _data.force_encoding(enc) if enc
+
         _debug("data.encoding = #{_data.encoding}")
+        _debug("data.valid_encoding? = #{_data.valid_encoding?}")
+
+        doc = Nokogiri::HTML(_data)
+
+        # _debug("doc.root = #{doc.root}")
+
+
+        _data = doc.to_html(:encoding => "UTF-8")
+
+        _debug("data.encoding = #{_data.encoding}")
+        _debug("data.valid_encoding? = #{_data.valid_encoding?}")
+
         # _data.encode!("utf8", :invalid => :replace)
       rescue OpenURI::HTTPError
       end
@@ -115,6 +139,38 @@ class ScrapeMaga
     _url.gsub(/[\/\._:-]/,'-').gsub(/[^0-9a-zA-Z-]/, '_')
   end
 
+  def all
+    get
+
+    # create all pdf
+    # TODO rmagick
+    # put_progress("create all pdfs")
+    # pdf_filename = url_to_key(URI.parse(downloaded_urls.first).host) + ".pdf"
+
+    # files = downloaded_urls.map{|_url|
+    #   name = "#{_cache_dir}/#{url_to_key(_url)}.pdf"
+    #   File.exist?(name) ? name : nil
+    # }.compact.join(" ")
+
+    # # `cd #{_cache_dir} && convert #{files} ../#{pdf_filename}`
+    # p "cd #{_cache_dir} && convert #{files} ../#{pdf_filename}"
+
+
+    put_progress("create all pdfs")
+    pdf_filename = url_to_key(URI.parse(downloaded_urls.first).host) + ".pdf"
+
+    files = []
+    downloaded_image_pathes.each do |_dir, _images|
+      _images.each do |_url|
+        files << "#{_dir}/#{File.basename(URI.parse(_url).path)}"
+      end
+    end
+
+    # _debug("files = #{files.join(' ')}")
+
+    `cd #{_cache_dir} && convert #{files.join(' ')} ../#{pdf_filename}`
+
+  end
 
   def get 
     if !self.url
@@ -147,6 +203,9 @@ class ScrapeMaga
 
     end
 
+    self.downloaded_image_pathes[cache_dir_path] = self.downloaded_images.dup
+
+
     # get next key
     doc.css('a').each do |atag|
       cont = atag.content
@@ -158,10 +217,12 @@ class ScrapeMaga
             if !downloaded_urls.include?(next_url)
               # TODO threading
               _debug("create new ScrapeMage instance with #{next_url}")
+              # next_url = "http://www.yahoo.co.jp/hogehoge/"
               sm = ScrapeMaga.new(next_url)
               sm.get
 
               self.downloaded_urls = self.downloaded_urls + sm.downloaded_urls
+              self.downloaded_image_pathes.merge!(sm.downloaded_image_pathes)
             end
           end
 
@@ -169,17 +230,6 @@ class ScrapeMaga
       end
     end
 
-
-    # create all pdf
-    # TODO rmagick
-    pdf_filename = url_to_key(URI.parse(downloaded_urls.first).host) + ".pdf"
-
-    files = downloaded_urls.map{|_url|
-      name = "#{_cache_dir}/#{url_to_key(_url)}.pdf"
-      File.exist?(name) ? name : nil
-    }.compact.join(" ")
-
-    `cd #{_cache_dir} && convert #{files} ../#{pdf_filename}`
 
   end
 

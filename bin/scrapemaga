@@ -1,13 +1,11 @@
+#!/usr/bin/env ruby
 
 require 'scrapemaga'
 
+url = ARGV.first
 
-sm = ScrapeMaga.new
-sm.use_cache = false
-sm.show_progress = true
-sm.get
+raise 'no url' if !url
 
-
-
+ScrapeMaga.new(url).all
 
 
