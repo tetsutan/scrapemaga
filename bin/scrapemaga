@@ -2,10 +2,32 @@
 
 require 'scrapemaga'
 
-url = ARGV.first
+url_or_list = ARGV.first
 
-raise 'no url' if !url
+raise 'no url' if !url_or_list
 
-ScrapeMaga.new(url).all
+
+urls = []
+if File.exist?(url_or_list)
+
+  open(url_or_list) do |f|
+    f.each do |line|
+      if line =~ /^http/
+        urls << line
+      end
+    end
+  end
+
+else
+
+  urls = [url_or_list]
+
+end
+
+
+
+ScrapeMaga.new(urls).all
+
+
 
 

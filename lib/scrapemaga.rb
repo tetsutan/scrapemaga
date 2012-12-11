@@ -6,7 +6,7 @@ require 'uri'
 
 class ScrapeMaga
 
-  NEXT_PATTERN = %w/次へ 次の >> 次 next/
+  NEXT_PATTERN = %w/次へ 次の >> 次 next ＮＥＸＴ NEXT →   ▶ >/
   DATA_ENCODINGS = %w/utf-8 euc-jp sjis ascii/
   
 
@@ -27,9 +27,10 @@ class ScrapeMaga
 
     self.url = url
 
-    Dir.mkdir(_cache_dir, 0777) if _cache_dir && !File.exist?(_cache_dir)
-
-    Dir.mkdir(cache_dir_path, 0777) if !File.exist?(cache_dir_path)
+    if ! url.is_a? Array
+      Dir.mkdir(_cache_dir, 0777) if _cache_dir && !File.exist?(_cache_dir)
+      Dir.mkdir(cache_dir_path, 0777) if !File.exist?(cache_dir_path)
+    end
 
 
   end
@@ -141,21 +142,10 @@ class ScrapeMaga
 
   def all
     get
+    create_all_pdf
+  end
 
-    # create all pdf
-    # TODO rmagick
-    # put_progress("create all pdfs")
-    # pdf_filename = url_to_key(URI.parse(downloaded_urls.first).host) + ".pdf"
-
-    # files = downloaded_urls.map{|_url|
-    #   name = "#{_cache_dir}/#{url_to_key(_url)}.pdf"
-    #   File.exist?(name) ? name : nil
-    # }.compact.join(" ")
-
-    # # `cd #{_cache_dir} && convert #{files} ../#{pdf_filename}`
-    # p "cd #{_cache_dir} && convert #{files} ../#{pdf_filename}"
-
-
+  def create_all_pdf
     put_progress("create all pdfs")
     pdf_filename = url_to_key(URI.parse(downloaded_urls.first).host) + ".pdf"
 
@@ -169,13 +159,22 @@ class ScrapeMaga
     # _debug("files = #{files.join(' ')}")
 
     `cd #{_cache_dir} && convert #{files.join(' ')} ../#{pdf_filename}`
-
   end
 
   def get 
     if !self.url
       puts "no url!!\n"
       exit 1
+    end
+
+    if self.url.is_a? Array
+      self.url.each do |_url|
+        sm = ScrapeMaga.new(_url)
+        sm.get
+        self.downloaded_urls = self.downloaded_urls + sm.downloaded_urls
+        self.downloaded_image_pathes.merge!(sm.downloaded_image_pathes)
+      end
+      return
     end
 
     return if !data
@@ -240,9 +239,10 @@ class ScrapeMaga
     return ret_uri.to_s
   end
   def check_domain(fixable_url)
-    ret_uri = URI.parse(fixable_url)
-    original_uri = URI.parse(url)
-    return ret_uri.host == original_uri.host
+    check_host = URI.parse(fixable_url).host
+    original_host = URI.parse(url).host
+
+    return check_host.include?(original_host)
   end
 
   def download_img(_dir, _url)
